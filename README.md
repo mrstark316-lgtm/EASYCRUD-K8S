@@ -246,6 +246,228 @@ Load balancing is handled automatically by:
 
 ---
 
+## 🛠 Troubleshooting Guide
+
+> Common issues encountered during deployment and their solutions.
+
+<details>
+<summary><b>1️⃣ Ingress Returns 404</b></summary>
+
+**Problem**
+```
+404 Not Found
+```
+
+**Cause**
+- Host mismatch in Ingress
+- Path misconfiguration
+- Incorrect service name
+
+**Fix**
+- Remove `host:` if not using a custom domain
+- Ensure Ingress routes correctly:
+```yaml
+- path: /
+  backend: frontend
+
+- path: /api
+  backend: backend
+```
+- Ensure service names match exactly.
+
+</details>
+
+<details>
+<summary><b>2️⃣ Ingress Returns 503</b></summary>
+
+**Problem**
+```
+503 Service Temporarily Unavailable
+```
+
+**Cause**
+- Backend Service not created
+- Service selector does not match pod labels
+- No endpoints attached
+
+**Fix**
+
+Check endpoints:
+```bash
+kubectl get endpoints backend
+```
+If `<none>`, verify:
+```bash
+kubectl get pods --show-labels
+```
+Ensure service selector matches pod label.
+
+</details>
+
+<details>
+<summary><b>3️⃣ ImagePullBackOff</b></summary>
+
+**Problem**
+```
+ImagePullBackOff
+```
+
+**Cause**
+- Image not pushed to DockerHub
+- Wrong image name/tag
+- Private repo without `imagePullSecret`
+
+**Fix**
+
+Push image:
+```bash
+docker push /frontend:v2
+```
+Update deployment:
+```bash
+kubectl set image deployment/frontend frontend=/frontend:v2
+```
+
+</details>
+
+<details>
+<summary><b>4️⃣ Frontend Cannot Call Backend</b></summary>
+
+**Problem**
+Register/Login fails.
+
+**Cause**
+Frontend was using ClusterIP:
+```
+VITE_API_URL=http://10.x.x.x:8080/api
+```
+ClusterIP is not accessible from the browser.
+
+**Fix**
+Use:
+```
+VITE_API_URL=/api
+```
+Rebuild image and redeploy.
+
+</details>
+
+<details>
+<summary><b>5️⃣ Backend Service Not Found</b></summary>
+
+**Problem**
+```
+services "backend" not found
+```
+
+**Cause**
+Ingress referencing wrong service name.
+
+Example mistake:
+```yaml
+name: backend-svc
+```
+But Ingress expects:
+```yaml
+name: backend
+```
+
+**Fix**
+Ensure names match exactly.
+
+</details>
+
+<details>
+<summary><b>6️⃣ kubectl get nodes Hanging</b></summary>
+
+**Problem**
+Command hangs indefinitely.
+
+**Cause**
+- EKS security group blocking port 443
+- Cluster endpoint misconfiguration
+
+**Fix**
+Allow HTTPS (443) from EC2 security group to EKS cluster security group.
+
+</details>
+
+<details>
+<summary><b>7️⃣ RDS Connection Fails</b></summary>
+
+**Problem**
+Backend logs show DB connection error.
+
+**Cause**
+- RDS not in same VPC
+- Security group not allowing EKS nodes
+- Public access misconfigured
+
+**Fix**
+- Ensure `Publicly Accessible = No`
+- Allow inbound `3306` from EKS node security group
+- Verify DB endpoint in `application.properties`
+
+</details>
+
+<details>
+<summary><b>8️⃣ Environment Variable Not Updating</b></summary>
+
+**Problem**
+Frontend still calling old API URL.
+
+**Cause**
+Vite injects env variables at **build time**.
+
+**Fix**
+Rebuild image:
+```bash
+docker build -t frontend:v2 .
+docker push frontend:v2
+kubectl rollout restart deployment frontend
+```
+
+</details>
+
+---
+
+## 🔎 Useful Debug Commands
+
+```bash
+kubectl get pods
+kubectl get svc
+kubectl get ingress
+kubectl describe ingress
+kubectl logs deployment/backend
+kubectl get endpoints
+```
+
+---
+
+## 📌 Common Architecture Mistakes Avoided
+
+| ❌ Mistake |
+|---|
+| Using NodePort for backend |
+| Exposing database publicly |
+| Hardcoding ClusterIP in frontend |
+| Missing backend service |
+| Service selector mismatch |
+
+---
+
+## 🧠 Debug Strategy
+
+1. Check Ingress routing
+2. Verify Service existence
+3. Validate endpoints
+4. Inspect backend logs
+5. Confirm environment variable injection
+6. Verify image versions
+7. Validate security groups
+
+---
+
 ## 🧠 Key Learnings
 
 - Proper use of `ClusterIP` vs `LoadBalancer` service types
